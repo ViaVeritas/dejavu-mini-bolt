@@ -1,0 +1,34 @@
+ONE SLIDE PITCH
+
+    Ever wish you could guide your past self? And what if now is deja vu - can your future check on present you?
+
+    I'm building DeJaVu Mini - a mental wellness/productivity mobile app that solves the number one problem separating you from your future self - consistency.
+
+    How? Simple - tell DeJaVu what is waiting on the inside, and on the other side of discipline. It will A.C.T:
+     - ADOPT the persona of this future you who knows the plan to get there
+     - CHECK in autonomously with the clarity of hindsight, and thus
+     - TRANSFORM consistency from chore to triumph - your future is here.
+
+    Get DeJaVu - Let Your Future Check On You
+
+SCREEN ZERO:
+
+    Login with Google/Canvas (from Instructure) screen.
+
+SCREEN ONE:
+
+    A chat screen in which user can talk about their future self, general plans, progress to date. This is the space where check-ins happen.
+
+SCREEN TWO:
+
+    It's sketched in DeJaVu_Mini/Context_Files/Input_Output_Schematic.png - this is the labscreen that is the central organ of planning. This takes the form of an input-output schematic. The central node contains an AI agent who monitors your inputs (the cards below) and your outputs (the cards above). 
+
+    Tap on the central hub to open a chat which can automatically create these input and output cards. 
+
+    Each card (such as Rest and Sleep for input, or say CSE201 Project 4 for output) opens a page to a goalscreen - which is the duolingo-style path progress interface for goal display and handling for a given category . The category card also features its own chat - allowing users to categorise conversations by dimensions of their lives.
+
+    Tapping the add output/input button pushes the existing goals further up/down and adds a new category that user can name.
+
+SCREEN THREE:
+
+    Settings screen. This is attached as both light and darkmode - see DeJaVu_Mini/Context_Files/Settings_Screen_Light.png and Settings_screen_Dark.png. The colour scheme seen here is to be the scheme for all screens.
