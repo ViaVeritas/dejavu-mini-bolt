@@ -13,6 +13,9 @@ import {
   Platform,
   Keyboard
 } from 'react-native';
+import { Calendar } from 'react-native-calendars';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
+import { CalendarDays, Clock } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { 
   Path, 
@@ -33,12 +36,40 @@ const START_TOP_SPACING = 72; // Position circle closer to the first goal (more 
 const END_MARKER_SIZE = 24;
 const END_MARKER_STROKE = 3;
 
+// Utility functions for deadline formatting
+const formatDeadline = (deadline: Date) => {
+  const now = new Date();
+  const timeDiff = deadline.getTime() - now.getTime();
+  const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+  
+  if (daysDiff < 0) return 'Overdue';
+  if (daysDiff === 0) return `Today at ${deadline.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  if (daysDiff === 1) return `Tomorrow at ${deadline.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  if (daysDiff <= 7) return `${daysDiff} days`;
+  
+  return `${deadline.toLocaleDateString()} at ${deadline.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+};
+
+const getDeadlineColor = (deadline: Date, completed: boolean) => {
+  if (completed) return '#4CAF50';
+  
+  const now = new Date();
+  const timeDiff = deadline.getTime() - now.getTime();
+  const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+  
+  if (daysDiff < 0) return '#ff4444'; // Overdue - red
+  if (daysDiff <= 1) return '#ff8800'; // Due today/tomorrow - orange
+  if (daysDiff <= 3) return '#ffaa00'; // Due within 3 days - amber
+  return '#666'; // Normal deadline - gray
+};
+
 interface Goal {
   id: string;
   title: string;
   description: string;
   completed: boolean;
   order: number;
+  deadline?: Date;
 }
 
 interface GoalDetailScreenProps {
@@ -78,6 +109,11 @@ const GoalNode = ({ goal, onToggle, onEdit, colors, onLayout }: {
           <Text style={[styles.goalNodeDescription, { color: goal.completed ? '#888' : colors.muted }]}>
             {goal.description}
           </Text>
+          {goal.deadline && (
+            <Text style={[styles.goalNodeDeadline, { color: getDeadlineColor(goal.deadline, goal.completed) }]}>
+              📅 {formatDeadline(goal.deadline)}
+            </Text>
+          )}
         </View>
         <View style={[styles.goalNodeIcon, { backgroundColor: goal.completed ? '#4CAF50' : colors.surface }]}>
           <Text style={[styles.goalNodeIconText, { color: colors.muted }]}>
@@ -109,6 +145,11 @@ export default function GoalDetailScreen({ categoryTitle, categoryType, onBack, 
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [newGoalTitle, setNewGoalTitle] = useState('');
   const [newGoalDescription, setNewGoalDescription] = useState('');
+  
+  // Deadline state
+  const [selectedDeadline, setSelectedDeadline] = useState<Date | undefined>(undefined);
+  const [isDatePickerVisible, setDatePickerVisible] = useState(false);
+  const [isTimePickerVisible, setTimePickerVisible] = useState(false);
 
   // Layout tracking for connector placement
   const [rowLayouts, setRowLayouts] = useState<Record<string, RowLayout>>({});
@@ -164,6 +205,32 @@ export default function GoalDetailScreen({ categoryTitle, categoryType, onBack, 
     setGoals(prev => prev.map(g => g.id === goalId ? { ...g, completed: !g.completed } : g)); 
   };
 
+  const handleDateConfirm = (date: Date) => {
+    const currentDate = selectedDeadline || new Date();
+    const newDate = new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+      currentDate.getHours(),
+      currentDate.getMinutes()
+    );
+    setSelectedDeadline(newDate);
+    setDatePickerVisible(false);
+  };
+
+  const handleTimeConfirm = (time: Date) => {
+    const currentDate = selectedDeadline || new Date();
+    const newDate = new Date(
+      currentDate.getFullYear(),
+      currentDate.getMonth(),
+      currentDate.getDate(),
+      time.getHours(),
+      time.getMinutes()
+    );
+    setSelectedDeadline(newDate);
+    setTimePickerVisible(false);
+  };
+
   const addGoal = () => {
     if (newGoalTitle.trim()) {
       const newGoal: Goal = { 
@@ -171,13 +238,15 @@ export default function GoalDetailScreen({ categoryTitle, categoryType, onBack, 
         title: newGoalTitle.trim(), 
         description: newGoalDescription.trim(), 
         completed: false, 
-        order: goals.length + 1
+        order: goals.length + 1,
+        deadline: selectedDeadline
       };
       setGoals(prev => [...prev, newGoal]);
       
       // Reset state
       setNewGoalTitle(''); 
       setNewGoalDescription(''); 
+      setSelectedDeadline(undefined);
       setShowAddModal(false);
     }
   };
@@ -186,6 +255,7 @@ export default function GoalDetailScreen({ categoryTitle, categoryType, onBack, 
     setEditingGoal(goal); 
     setNewGoalTitle(goal.title); 
     setNewGoalDescription(goal.description); 
+    setSelectedDeadline(goal.deadline);
     setShowEditModal(true); 
   };
 
@@ -194,12 +264,14 @@ export default function GoalDetailScreen({ categoryTitle, categoryType, onBack, 
       setGoals(prev => prev.map(g => g.id === editingGoal.id ? { 
         ...g, 
         title: newGoalTitle.trim(), 
-        description: newGoalDescription.trim()
+        description: newGoalDescription.trim(),
+        deadline: selectedDeadline
       } : g)); 
       
       // Reset all state
       setNewGoalTitle(''); 
       setNewGoalDescription(''); 
+      setSelectedDeadline(undefined);
       setEditingGoal(null); 
       setShowEditModal(false);
     } 
@@ -460,11 +532,60 @@ export default function GoalDetailScreen({ categoryTitle, categoryType, onBack, 
                     onChangeText={setNewGoalDescription} 
                     multiline 
                   />
+                  
+                  {/* Deadline Section */}
+                  <View style={styles.deadlineSection}>
+                    <Text style={[styles.deadlineLabel, { color: colors.text }]}>Set Deadline (Optional)</Text>
+                    
+                    {/* Deadline Display */}
+                    {selectedDeadline && (
+                      <View style={[styles.deadlineDisplay, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                        <Text style={[styles.deadlineDisplayText, { color: colors.text }]}>
+                          📅 {formatDeadline(selectedDeadline)}
+                        </Text>
+                      </View>
+                    )}
+                    
+                    {/* Date and Time Buttons */}
+                    <View style={styles.dateTimeButtons}>
+                      <TouchableOpacity 
+                        style={[styles.dateTimeButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                        onPress={() => setDatePickerVisible(true)}
+                      >
+                        <CalendarDays size={16} color={colors.accent} />
+                        <Text style={[styles.dateTimeButtonText, { color: colors.text }]}>
+                          {selectedDeadline ? selectedDeadline.toLocaleDateString() : 'Select Date'}
+                        </Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity 
+                        style={[styles.dateTimeButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                        onPress={() => setTimePickerVisible(true)}
+                      >
+                        <Clock size={16} color={colors.accent} />
+                        <Text style={[styles.dateTimeButtonText, { color: colors.text }]}>
+                          {selectedDeadline ? selectedDeadline.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Select Time'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    
+                    {/* Clear Deadline Button */}
+                    {selectedDeadline && (
+                      <TouchableOpacity 
+                        style={[styles.clearDeadlineButton, { backgroundColor: colors.surface }]}
+                        onPress={() => setSelectedDeadline(undefined)}
+                      >
+                        <Text style={[styles.clearDeadlineText, { color: colors.muted }]}>Clear Deadline</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  
                   <View style={styles.modalButtons}>
                     <TouchableOpacity 
                       style={[styles.modalButton, { backgroundColor: colors.surface }]} 
                       onPress={() => { 
                         setShowAddModal(false); 
+                        setSelectedDeadline(undefined);
                       }}
                     >
                       <Text style={[styles.modalButtonText, { color: colors.muted }]}>Cancel</Text>
@@ -502,6 +623,54 @@ export default function GoalDetailScreen({ categoryTitle, categoryType, onBack, 
                     onChangeText={setNewGoalDescription} 
                     multiline 
                   />
+                  
+                  {/* Deadline Section */}
+                  <View style={styles.deadlineSection}>
+                    <Text style={[styles.deadlineLabel, { color: colors.text }]}>Edit Deadline</Text>
+                    
+                    {/* Deadline Display */}
+                    {selectedDeadline && (
+                      <View style={[styles.deadlineDisplay, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                        <Text style={[styles.deadlineDisplayText, { color: colors.text }]}>
+                          📅 {formatDeadline(selectedDeadline)}
+                        </Text>
+                      </View>
+                    )}
+                    
+                    {/* Date and Time Buttons */}
+                    <View style={styles.dateTimeButtons}>
+                      <TouchableOpacity 
+                        style={[styles.dateTimeButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                        onPress={() => setDatePickerVisible(true)}
+                      >
+                        <CalendarDays size={16} color={colors.accent} />
+                        <Text style={[styles.dateTimeButtonText, { color: colors.text }]}>
+                          {selectedDeadline ? selectedDeadline.toLocaleDateString() : 'Select Date'}
+                        </Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity 
+                        style={[styles.dateTimeButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                        onPress={() => setTimePickerVisible(true)}
+                      >
+                        <Clock size={16} color={colors.accent} />
+                        <Text style={[styles.dateTimeButtonText, { color: colors.text }]}>
+                          {selectedDeadline ? selectedDeadline.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Select Time'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    
+                    {/* Clear Deadline Button */}
+                    {selectedDeadline && (
+                      <TouchableOpacity 
+                        style={[styles.clearDeadlineButton, { backgroundColor: colors.surface }]}
+                        onPress={() => setSelectedDeadline(undefined)}
+                      >
+                        <Text style={[styles.clearDeadlineText, { color: colors.muted }]}>Clear Deadline</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  
                   <View style={styles.modalButtons}>
                     <TouchableOpacity 
                       style={[styles.modalButton, { backgroundColor: colors.accent }]} 
@@ -512,7 +681,8 @@ export default function GoalDetailScreen({ categoryTitle, categoryType, onBack, 
                     <TouchableOpacity 
                       style={[styles.modalButton, { backgroundColor: colors.surface }]} 
                       onPress={() => { 
-                        setShowEditModal(false); 
+                        setShowEditModal(false);
+                        setSelectedDeadline(undefined); 
                       }}
                     >
                       <Text style={[styles.modalButtonText, { color: colors.muted }]}>Cancel</Text>
@@ -528,6 +698,23 @@ export default function GoalDetailScreen({ categoryTitle, categoryType, onBack, 
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+      
+      {/* Date Picker */}
+      <DateTimePickerModal
+        isVisible={isDatePickerVisible}
+        mode="date"
+        onConfirm={handleDateConfirm}
+        onCancel={() => setDatePickerVisible(false)}
+        minimumDate={new Date()}
+      />
+      
+      {/* Time Picker */}
+      <DateTimePickerModal
+        isVisible={isTimePickerVisible}
+        mode="time"
+        onConfirm={handleTimeConfirm}
+        onCancel={() => setTimePickerVisible(false)}
+      />
     </View>
   );
 }
@@ -567,7 +754,7 @@ const styles = StyleSheet.create({
   addGoalButton: { backgroundColor: '#8B5CF6', marginHorizontal: 20, marginVertical: 20, paddingVertical: 15, borderRadius: 12, alignItems: 'center' },
   addGoalButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { backgroundColor: '#fff', borderRadius: 12, padding: 20, width: '90%', maxWidth: 400, minHeight: 300 },
+  modalContent: { backgroundColor: '#fff', borderRadius: 12, padding: 20, width: '90%', maxWidth: 400, maxHeight: '80%' },
   modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 20, textAlign: 'center' },
   modalInput: { borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 8, padding: 12, marginBottom: 15, fontSize: 16 },
   modalButtons: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
@@ -579,4 +766,13 @@ const styles = StyleSheet.create({
   deleteButtonText: { color: '#fff', fontSize: 16, fontWeight: '500' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { fontSize: 16, color: '#666' },
+  deadlineSection: { marginBottom: 16 },
+  deadlineLabel: { fontSize: 14, fontWeight: '600', color: '#000', marginBottom: 8 },
+  deadlineDisplay: { backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 8, marginBottom: 8 },
+  deadlineDisplayText: { fontSize: 14, color: '#000', textAlign: 'center' },
+  dateTimeButtons: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  dateTimeButton: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8f9fa', borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, marginHorizontal: 4 },
+  dateTimeButtonText: { marginLeft: 6, fontSize: 14, color: '#000' },
+  clearDeadlineButton: { backgroundColor: '#f8f9fa', borderRadius: 6, padding: 8, alignItems: 'center' },
+  clearDeadlineText: { fontSize: 12, color: '#666' },
 });
