@@ -15,11 +15,11 @@ import 'reactflow/dist/style.css';
 import { Plus, MessageCircle, User } from 'lucide-react';
 import { Button } from './ui/button';
 import { GoalCard } from './GoalCard';
-import { CategoryChatPanel } from './CategoryChatPanel';
 import { Goal } from '../types/Goal';
 
 interface LabScreenProps {
   onGoalSelect: (goal: Goal) => void;
+  onGoalChatOpen: (goal: Goal) => void;
 }
 
 // Custom Node Components
@@ -125,7 +125,7 @@ const nodeTypes: NodeTypes = {
   centralHub: CentralHubNode,
 };
 
-export function LabScreen({ onGoalSelect }: LabScreenProps) {
+export function LabScreen({ onGoalSelect, onGoalChatOpen }: LabScreenProps) {
   // Load initial state from localStorage or use default
   const [goals, setGoals] = useState<Goal[]>(() => {
     const saved = localStorage.getItem('dejavu-lab-goals');
@@ -148,8 +148,6 @@ export function LabScreen({ onGoalSelect }: LabScreenProps) {
 
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [chatPanelOpen, setChatPanelOpen] = useState(false);
-  const [selectedChatGoal, setSelectedChatGoal] = useState<Goal | null>(null);
 
   // Save goals to localStorage whenever they change
   useEffect(() => {
@@ -186,9 +184,8 @@ export function LabScreen({ onGoalSelect }: LabScreenProps) {
 
   // Handle chat panel opening
   const handleChatClick = useCallback((goal: Goal) => {
-    setSelectedChatGoal(goal);
-    setChatPanelOpen(true);
-  }, []);
+    onGoalChatOpen(goal);
+  }, [onGoalChatOpen]);
 
   // Handle goal card click for navigation
   const handleCardClick = useCallback((goal: Goal) => {
@@ -336,29 +333,21 @@ export function LabScreen({ onGoalSelect }: LabScreenProps) {
   }, [goals, addGoal, setNodes, setEdges, handleChatClick, handleCardClick]);
 
   return (
-    <>
-      <div className="min-h-screen bg-background">
-        <div className="h-screen">
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            nodeTypes={nodeTypes}
-            fitView
-            fitViewOptions={{ padding: 0.2 }}
-          >
-            <Controls />
-            <Background />
-          </ReactFlow>
-        </div>
+    <div className="min-h-screen bg-background">
+      <div className="h-screen">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          nodeTypes={nodeTypes}
+          fitView
+          fitViewOptions={{ padding: 0.2 }}
+        >
+          <Controls />
+          <Background />
+        </ReactFlow>
       </div>
-      
-      <CategoryChatPanel
-        isOpen={chatPanelOpen}
-        onClose={() => setChatPanelOpen(false)}
-        goal={selectedChatGoal}
-      />
-    </>
+    </div>
   );
 }

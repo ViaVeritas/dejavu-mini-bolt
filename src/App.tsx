@@ -4,6 +4,7 @@ import { ChatScreen } from "./components/ChatScreen";
 import { LabScreen } from "./components/LabScreen";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { GoalDetailScreen } from "./components/GoalDetailScreen";
+import { CategoryChatPanel } from "./components/CategoryChatPanel";
 import { Home, FlaskConical, Settings } from "lucide-react";
 import { Goal } from "./types/Goal";
 
@@ -14,6 +15,8 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
+  const [activeGoalContext, setActiveGoalContext] = useState<Goal | null>(null);
+  const [showGoalChat, setShowGoalChat] = useState(false);
 
   const handleLogin = () => {
     setIsLoggedIn(true);
@@ -42,6 +45,22 @@ export default function App() {
     setCurrentScreen("lab");
   };
 
+  const handleGoalChatOpen = (goal: Goal) => {
+    setActiveGoalContext(goal);
+    setShowGoalChat(true);
+    setCurrentScreen("chat");
+  };
+
+  const handleChatNavigation = () => {
+    if (activeGoalContext) {
+      setShowGoalChat(true);
+      setCurrentScreen("chat");
+    } else {
+      setShowGoalChat(false);
+      setCurrentScreen("chat");
+    }
+  };
+
   if (!isLoggedIn) {
     return <LoginScreen onLogin={handleLogin} />;
   }
@@ -49,9 +68,20 @@ export default function App() {
   const renderScreen = () => {
     switch (currentScreen) {
       case "chat":
-        return <ChatScreen />;
+        return showGoalChat && activeGoalContext ? (
+          <div className="relative h-full">
+            <ChatScreen />
+            <CategoryChatPanel 
+              isOpen={true}
+              onClose={() => setShowGoalChat(false)}
+              goal={activeGoalContext}
+            />
+          </div>
+        ) : (
+          <ChatScreen />
+        );
       case "lab":
-        return <LabScreen onGoalSelect={handleGoalSelect} />;
+        return <LabScreen onGoalSelect={handleGoalSelect} onGoalChatOpen={handleGoalChatOpen} />;
       case "goalDetail":
         return selectedGoal ? (
           <GoalDetailScreen 
@@ -59,7 +89,7 @@ export default function App() {
             onBack={handleBackFromGoalDetail}
           />
         ) : (
-          <LabScreen onGoalSelect={handleGoalSelect} />
+          <LabScreen onGoalSelect={handleGoalSelect} onGoalChatOpen={handleGoalChatOpen} />
         );
       case "settings":
         return (
@@ -69,7 +99,7 @@ export default function App() {
           />
         );
       default:
-        return <LabScreen onGoalSelect={handleGoalSelect} />;
+        return <LabScreen onGoalSelect={handleGoalSelect} onGoalChatOpen={handleGoalChatOpen} />;
     }
   };
 
@@ -92,7 +122,7 @@ export default function App() {
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border">
         <div className="flex justify-around items-center py-2">
           <button
-            onClick={() => setCurrentScreen("chat")}
+            onClick={handleChatNavigation}
             className={`flex flex-col items-center p-2 ${
               currentScreen === "chat"
                 ? "text-primary"
